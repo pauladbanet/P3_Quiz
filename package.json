@@ -4,7 +4,7 @@
   "description": "Proyecto Quiz",
   "main": "main.js",
   "scripts": {
-    "start":"node main.js",
+    "start": "node main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -13,5 +13,9 @@
     "node"
   ],
   "author": "Paula y Carlos",
-  "license": "Unlicense"
+  "license": "Unlicense",
+  "dependencies": {
+    "chalk": "^2.3.2",
+    "figlet": "^1.2.0"
+  }
 }
