@@ -80,7 +80,7 @@ exports.showCmd = (rl,id) =>{
 };
 
 
-const makeQuestion =(rl,test) => {
+const makeQuestion = (rl,text) => {
     return new Sequelize.Promise((resolve, reject) => {
         rl.question(colorize(text, 'red'), answer => {
             resolve(answer.trim());
@@ -181,74 +181,86 @@ exports.editCmd = (rl,id) =>{
  * Prueba un quiz, hace una pregunta del modelo a la que debemos contestar
  * @param id clave del quiz a probar.
  */
-exports.testCmd = (rl,id) =>{
-    if (typeof id === "undefined"){
-        errorlog('Falta el parámetro id.');
-        rl.prompt();
-    } else {
-        try {
-            const quiz = model.getByIndex(id);
-            rl.question(colorize(`${quiz.question}?: `,'magenta'), resp => {
-                resp = resp.toLowerCase().trim();
-                if(resp === quiz.answer.toLowerCase().trim()) {
-                    log('Su respuesta es correcta.');
-                    biglog('CORRECTO', 'green');
-                } else{
-                    log('Su respuesta es incorrecta.');
-                    biglog('INCORRECTO','red');
-                }
-                rl.prompt();
-            });
-        } catch(error) {
-            errorlog(error.message);
-            rl.prompt();
-        }
+exports.testCmd = (rl,id) => {
+    validateId(id)
+        .then(id => models.quiz.findById(id))
+.then(quiz => {
+        if (!quiz) {
+        throw new Error(`No existe un quiz asociado al id=${id}.`);
     }
-    rl.prompt();
+
+    log(` [${colorize(quiz.id, 'magenta')}]: ${quiz.question}`);
+    return makeQuestion(rl, ' Introduzca la respuesta ')
+        .then(a => {
+            if(a.toLowerCase().trim() === quiz.answer.toLowerCase().trim()){
+                log('Su respuesta es correcta.');
+                biglog('CORRECTO','green');
+            }else{
+                log('Su respuesta es incorrecta.');
+                biglog('INCORRECTO','red');
+            }
+});
+})
+.catch(error => {
+        errorlog(error.message);
+})
+.then(() => {
+        rl.prompt();
+});
 };
 
 /**
  * Pregunta todos los quizzes existentes en el modelo en orden aleatorio.
  * Se gana si contesta todo satisfactoriamente.
  */
-exports.playCmd= rl => {
+exports.playCmd = rl => {
 
     let score = 0;
     let toBeResolved = [];
 
-    for(let i = 0; i < model.count(); i++)
-        toBeResolved[i] = i;
-
     const playOne = () => {
+        return new Sequelize.Promise((resolve,reject) => {
 
-        if (toBeResolved.length === 0){
-            log('No hay más preguntas.','red');
-            log(`Final del juego. Correctas: ${score}`);
-            biglog(`${score}`, 'green');
-            rl.prompt();
+            if(toBeResolved.length === 0){
+            console.log("No hay nada más que preguntar.\nFin del quiz. Aciertos: ");
+            resolve();
+            return;
         } else {
-            let id = Math.floor(Math.random() * toBeResolved.length);
-            let quiz = model.getByIndex(toBeResolved[id]);
-            toBeResolved.splice(id, 1);
+            let id = Math.floor(Math.random()*toBeResolved.length);
+            let quiz = toBeResolved[id];
+            toBeResolved.splice(id,1);
 
-            rl.question(colorize(`${quiz.question}?: `,'magenta'), resp => {
-                resp = resp.toLowerCase().trim();
-                if(resp=== quiz.answer.toLowerCase().trim()){
-                    ++score;
-                    log(`CORRECTO - Lleva ${score} aciertos.`,'green');
-                    playOne();
-                } else{
-                    log(`INCORRECTO.`, 'red');
-                    log(`Final del juego. Correctas: ${score}`);
-                    biglog(`${score}`,'green');
-                }
-                rl.prompt();}
-            );
+            return makeQuestion(rl, quiz.question+'? ')
+                .then(a => {
+                    if(a.toLowerCase().trim() === quiz.answer.toLowerCase().trim() ){
+                        score++;
+                        console.log('CORRECTO.\nLleva ',score, 'aciertos');
+                        resolve(playOne());
+                    }else{
+                        console.log("INCORRECTO.\nFin del juego. Aciertos: ");
+                        resolve();
+                    }
+        });
         }
+    });
     };
-    playOne();
+
+    models.quiz.findAll({raw: true})
+        .then(quizzes => {
+        toBeResolved = quizzes;
+})
+.then(() => {
+        return playOne();
+})
+.catch(error => {
+        console.log(error);
+})
+.then(() => {
+        biglog(`${score}`,'magenta');
     rl.prompt();
+});
 };
+
 
 /**
  * Muestra los nombres de los autores de la práctica.
